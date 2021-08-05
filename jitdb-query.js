@@ -32,15 +32,36 @@ const typeDefs = gql`
     """
     userPosts(id: ID): [JSONObject]
     """
-    get user's posts with ssb.db(query(where ...operators))
+    get messages using ssb.db(query(where ...operators))
+    for example; get all private posts by author id
+      queryMessages(
+        where: {
+          and: [
+            { operator: type, value: "post" }
+            { operator: author, value: "@xyzlakjdsskdfjuaypoibmsdbcsdfj=.ed25519" }
+            { operator: isPrivate }
+          ]
+        }
+      )
     """
-    queryMessages(where: Operator): [JSONObject]
+    queryMessages(where: Operator!): [JSONObject]
   }
 
   enum operator {
     type
     author
     mentions
+    channel
+    key
+    votesFor
+    contact
+    about
+    hasRoot
+    hasFork
+    hasBranch
+    isRoot
+    isPrivate
+    isPublic
   }
 
   input Operator {
@@ -94,6 +115,39 @@ module.exports = {
               break
             case 'mentions':
               andOr = mentions(andOr.value)
+              break
+            case 'channel':
+              andOr = channel(andOr.value)
+              break
+            case 'key':
+              andOr = key(andOr.value)
+              break
+            case 'votesFor':
+              andOr = votesFor(andOr.value)
+              break
+            case 'contact':
+              andOr = contact(andOr.value)
+              break
+            case 'about':
+              andOr = about(andOr.value)
+              break
+            case 'hasRoot':
+              andOr = hasRoot(andOr.value)
+              break
+            case 'hasFork':
+              andOr = hasFork(andOr.value)
+              break
+            case 'hasBranch':
+              andOr = hasBranch(andOr.value)
+              break
+            case 'isRoot':
+              andOr = isRoot(andOr.value)
+              break
+            case 'isPrivate':
+              andOr = isPrivate(andOr.value)
+              break
+            case 'isPublic':
+              andOr = isPublic(andOr.value)
               break
 
             default:
