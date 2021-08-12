@@ -62,6 +62,8 @@ const typeDefs = gql`
     isRoot
     isPrivate
     isPublic
+    fullMentions
+    slowEqual
   }
 
   input Operator {
@@ -69,6 +71,7 @@ const typeDefs = gql`
     or: [Operator]
     operator: operator
     value: JSON
+    values: [JSON]
   }
 `
 
@@ -83,6 +86,9 @@ module.exports = {
     const isDb2 = (() => rpc.db !== undefined)()
 
     if (!isDb2) throw new GraphQLError(`[${pkg.name} v${pkg.version}] is only valid for ssb-db2 databases`)
+
+    const { fullMentions, slowEqual } = rpc.db.operators
+    debug(rpc.db.operators)
 
     function getUserPosts(id) {
       return rpc.db.query(where(and(type('post'), author(id))))
@@ -149,7 +155,12 @@ module.exports = {
             case 'isPublic':
               andOr = isPublic(andOr.value)
               break
-
+            case 'fullMentions':
+              andOr = fullMentions(andOr.value)
+              break
+            case 'slowEqual':
+              andOr = slowEqual(...andOr.values)
+              break
             default:
               console.warn('Missing operator:', operator)
               break
@@ -162,9 +173,9 @@ module.exports = {
     }
 
     function walkQuery(args) {
-      const queryWhere = walk(args.where)
-      // console.log(pretty(queryWhere))
-      return toPromise()(rpc.db.query(where(queryWhere)))
+      const predicates = walk(args.where)
+      // console.log(pretty(predicates))
+      return toPromise()(rpc.db.query(where(predicates)))
     }
 
     const resolvers = {
