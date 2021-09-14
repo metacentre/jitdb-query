@@ -19,9 +19,11 @@ const {
   isPrivate,
   isPublic,
   toPromise,
-  toPullStream
+  toPullStream,
+  paginate
 } = require('ssb-db2/operators')
 const debug = require('debug')('plugins:jitdb-query')
+const pull = require('pull-stream')
 
 const pkg = require('./package.json')
 
@@ -44,7 +46,7 @@ const typeDefs = gql`
         }
       )
     """
-    queryMessages(where: Operator!): [JSONObject]
+    queryMessages(where: Operator!, paginate: Int): [JSONObject]
   }
 
   enum operator {
@@ -64,6 +66,10 @@ const typeDefs = gql`
     isPublic
     fullMentions
     slowEqual
+    lt
+    lte
+    gt
+    gte
   }
 
   input Operator {
@@ -87,7 +93,7 @@ module.exports = {
 
     if (!isDb2) throw new GraphQLError(`[${pkg.name} v${pkg.version}] is only valid for ssb-db2 databases`)
 
-    const { fullMentions, slowEqual } = rpc.db.operators
+    const { fullMentions, slowEqual, lt, lte, gt, gte } = rpc.db.operators
     debug(rpc.db.operators)
 
     function getUserPosts(id) {
@@ -161,6 +167,18 @@ module.exports = {
             case 'slowEqual':
               andOr = slowEqual(...andOr.values)
               break
+            case 'lt':
+              andOr = lt(andOr.value, 'timestamp')
+              break
+            case 'lte':
+              andOr = lte(andOr.value, 'timestamp')
+              break
+            case 'gt':
+              andOr = gt(andOr.value, 'timestamp')
+              break
+            case 'gte':
+              andOr = gte(andOr.value, 'timestamp')
+              break
             default:
               console.warn('Missing operator:', operator)
               break
@@ -175,7 +193,26 @@ module.exports = {
     function walkQuery(args) {
       const predicates = walk(args.where)
       // console.log(pretty(predicates))
-      return toPromise()(rpc.db.query(where(predicates)))
+      if (args.paginate) {
+        return new Promise((resolve, reject) => {
+          // prettier-ignore
+          const result =rpc.db.query(
+            where(predicates),
+            paginate(args.paginate),
+            toPullStream()
+          )
+
+          pull(
+            result,
+            pull.drain(
+              data => resolve(data),
+              error => {
+                if (error) reject(error)
+              }
+            )
+          )
+        })
+      } else return toPromise()(rpc.db.query(where(predicates)))
     }
 
     const resolvers = {
@@ -189,7 +226,7 @@ module.exports = {
       }
     }
 
-    rpc.graphql.addTypeDefs(typeDefs)
+    rpc.graphql.addTypeDefs(typeDefs, pkg.name, pkg.version)
     rpc.graphql.addResolvers(resolvers)
 
     return {
